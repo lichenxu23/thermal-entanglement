@@ -1,5 +1,7 @@
 import numpy as np
 import scipy
+from scipy import sparse, linalg
+# from scipy.sparse import linalg
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
@@ -17,16 +19,16 @@ def single_site_operator(operator, site, N):
     return result
 
 def two_site_operator(op1, site1, op2, site2, N):
-    return single_site_operator(op1, site1, N) * single_site_operator(op2, site2, N)
+    return single_site_operator(op1, site1, N) @ single_site_operator(op2, site2, N)
 
 def tfim(N,J,h=1):
     # H = -J \sum ZZ - h \sum X
-    H = np.zeros((2**N,2**N))
-    
+    H = np.zeros((2**N,2**N)) # dense matrix, if sparse, use: H = sparse.csr_matrix((2**N, 2**N))
+
     for i in range(N):
         H -= h * single_site_operator(X,i,N)
         H -= J * two_site_operator(Z,i,Z,(i+1)%N,N)
-    
+
     return H
 
 def XXZ(N,lam):
@@ -48,7 +50,7 @@ def log_negativity(rho):
     rhoTA = rho.reshape(M,M,M,M).swapaxes(0, 2).reshape(shape)
     singular_values = np.linalg.svd(rhoTA, compute_uv=False)
     log_neg = np.log(np.sum(singular_values))
-    
+
     return log_neg
 
 if __name__ == '__main__':
@@ -69,13 +71,13 @@ if __name__ == '__main__':
             #H = tfim(N,J,1)
             H = XXZ(N,lam)
             energies, eigenstates = scipy.linalg.eigh(H)
+            eigenstates = eigenstates.T # the eigenstate are stores in columns
             betas = np.logspace(-2,1,num=10,base = 10)
             log_negs = []
             for beta in tqdm(betas):
                 rho = sum(np.exp(-beta * en) * np.outer(st, st.conj()) for en, st in zip(energies, eigenstates))
                 rho = rho/np.trace(rho)
                 log_negs.append(log_negativity(rho))
-            plt.scatter(betas, log_negs, label=f'N = {N}')
+            plt.plot(betas, log_negs, marker='o', label=f'N = {N}')
         plt.legend()
-        #plt.savefig(f'/home/chenxu/thermal/tfim J={J}.png')
-        plt.savefig(f'/home/chenxu/thermal/XXZ lambda={lam}.png')
+        plt.savefig(f'XXZ lambda={lam}.png')
